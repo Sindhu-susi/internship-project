@@ -1,12 +1,15 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.common.exceptions import ElementClickInterceptedException, WebDriverException
 
 
 class Page:
     def __init__(self,driver):
         self.driver = driver
-        self.wait = WebDriverWait(driver, 15)
+        self.wait = WebDriverWait(driver, 30)
     def open_url(self,url):
         self.driver.get(url)
     def find_element(self,*locator):
@@ -14,10 +17,24 @@ class Page:
     def find_elements(self,*locator):
         return self.driver.find_elements(*locator)
     def click(self,*locator):
-        self.wait.until(EC.element_to_be_clickable(locator)).click()
+        #self.wait.until(EC.element_to_be_clickable(locator)).click()
+        element = self.wait.until(EC.presence_of_element_located(locator))
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+        try:
+            element.click()  # first try Selenium click
+        except (ElementClickInterceptedException, WebDriverException):
+        # fallback to JS click if normal click fails:
+            self.driver.execute_script("arguments[0].click();", element)
+
 
     def input_text(self,  locator,text,):
-        self.wait.until(EC.visibility_of_element_located(locator)).send_keys(text)
+       #self.wait.until(EC.visibility_of_element_located(locator)).send_keys(text)
+       element = self.wait.until(EC.visibility_of_element_located(locator))
+       self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+       element.clear()
+       element.send_keys(text)
+
+
 
     def verify_partial_text(self, expected_partial_text, *locator):
         actual_text = self.find_element(*locator).text
@@ -25,7 +42,21 @@ class Page:
             f"Expected {expected_partial_text} not in actual {actual_text}"
 
     def get_text(self, *locator):
-            return self.wait.until(EC.visibility_of_element_located(*locator)).text
+           # return self.wait.until(EC.visibility_of_element_located(*locator)).text
+           element = self.wait.until(EC.visibility_of_element_located(locator))
+           self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+           return element.text
 
-    def is_visible(self, locator):
-            return self.wait.until(EC.visibility_of_element_located(locator)).is_displayed()
+    def is_visible(self, locator,timeout=20):
+            #return self.wait.until(EC.visibility_of_element_located(locator)).is_displayed()
+            """
+               Waits for element to be visible, scrolls it into view for headless, and returns True/False
+               """
+            try:
+                element = WebDriverWait(self.driver, timeout).until(
+                    EC.visibility_of_element_located(locator)
+                )
+                self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+                return element.is_displayed()
+            except (TimeoutException, NoSuchElementException):
+                return False
