@@ -4,6 +4,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import ElementClickInterceptedException, WebDriverException
+import time
 
 
 class Page:
@@ -16,16 +17,32 @@ class Page:
         return self.driver.find_element(*locator)
     def find_elements(self,*locator):
         return self.driver.find_elements(*locator)
-    def click(self,*locator):
-        #self.wait.until(EC.element_to_be_clickable(locator)).click()
-        element = self.wait.until(EC.presence_of_element_located(locator))
-        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
-        try:
-            element.click()  # first try Selenium click
-        except (ElementClickInterceptedException, WebDriverException):
-        # fallback to JS click if normal click fails:
-            self.driver.execute_script("arguments[0].click();", element)
 
+    def click(self, *locator):
+        wait = WebDriverWait(self.driver, 25)  # longer wait for slow BrowserStack / popups
+
+        # optional: wait for main container first
+        try:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".dashboard-container")))
+        except:
+            pass
+
+        # wait for element presence
+        element = wait.until(EC.presence_of_element_located(locator))
+
+        # scroll into view
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+
+        try:
+            element.click()
+        except (ElementClickInterceptedException, WebDriverException):
+            try:
+                self.driver.execute_script("arguments[0].click();", element)
+            except Exception as e:
+                import time
+                timestamp = int(time.time())
+                self.driver.save_screenshot(f"screenshot_fail_{timestamp}.png")
+                raise e
 
     def input_text(self,  locator,text,):
        #self.wait.until(EC.visibility_of_element_located(locator)).send_keys(text)
