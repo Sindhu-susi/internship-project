@@ -7,6 +7,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from webdriver_manager.firefox import GeckoDriverManager
 from app.application import Application
 import os
+import allure
+from datetime import datetime
 
 BROWSERSTACK_USERNAME = os.getenv("BROWSERSTACK_USERNAME", "sindhusukumaran_wl2msu")
 BROWSERSTACK_ACCESS_KEY = os.getenv("BROWSERSTACK_ACCESS_KEY", "fpsYv6Usnzat7ChkVrCP")
@@ -82,6 +84,8 @@ def browser_init(context):
 def before_scenario(context, scenario):
     print('\nStarted scenario: ', scenario.name)
     browser_init(context)
+    if hasattr(context, "driver"):
+        allure.dynamic.label("browser", context.driver.name)
 
 
 def before_step(context, step):
@@ -91,6 +95,15 @@ def before_step(context, step):
 def after_step(context, step):
     if step.status == 'failed':
         print('\nStep failed: ', step)
+        if hasattr(context, "driver"):
+            screenshot_name = f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            context.driver.save_screenshot(screenshot_name)
+
+            allure.attach.file(
+                screenshot_name,
+                name="Failure Screenshot",
+                attachment_type=allure.attachment_type.PNG
+            )
 
 
 def after_scenario(context, scenario):
