@@ -10,6 +10,7 @@ class  DashboardPage(Page):
  MY_CLIENTS=(By.XPATH,"//a[@href='/my-fixations']")
 
  def open_settings(self):
-    self.click(*self.SETTINGS)
+
+     self.click_js(*self.SETTINGS)
  def open_my_clients(self):
-     self.click(*self.MY_CLIENTS)
+     self.click_js(*self.MY_CLIENTS)

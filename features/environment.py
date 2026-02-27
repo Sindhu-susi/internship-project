@@ -16,51 +16,88 @@ BROWSERSTACK_ACCESS_KEY = os.getenv("BROWSERSTACK_ACCESS_KEY", "fpsYv6Usnzat7Chk
 
 def browser_init(context):
     browser = context.config.userdata.get("browser", "chrome").lower()
-    headless = context.config.userdata.get("headless", "true").lower()
+    headless = context.config.userdata.get("headless", "false").lower()=="true"
     use_browserstack = context.config.userdata.get("browserstack", "false").lower() == "true"
+    mobile = context.config.userdata.get("mobile", "false").lower() == "true"
 
     if use_browserstack:
         # ---------- BrowserStack ----------
-        from selenium.webdriver.safari.options import Options as SafariOptions
+        if use_browserstack:
+            from selenium.webdriver.chrome.options import Options
 
-        options = SafariOptions()
+            options = Options()
 
-        # BrowserStack W3C format (REQUIRED for Safari)
-        bstack_options = {
-            "os": "OS X",
-            "osVersion": "Ventura",  # you can use: Monterey / Ventura / Sonoma
-            "browserVersion": "latest",
-            "buildName": "Build 1",
-            "sessionName": "Behave Safari Test",
-            "debug": "true",
-            "networkLogs": "true"
-        }
+            build_name = f"Behave Automation Build {datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            session_name = context.scenario.name if hasattr(context, "scenario") else "Test Session"
 
-        options.set_capability("browserName", "Safari")
-        options.set_capability("bstack:options", bstack_options)
+            # ---------------- Desktop Chrome on BrowserStack ----------------
+            bstack_options = {
+                "os": "Windows",
+                "osVersion": "11",
+                "browserVersion": "latest",
+                "buildName": build_name,
+                "sessionName": session_name,
+                "debug": "true",
+                "networkLogs": "true",
+                "video": "true"
+            }
 
-        # Connect to BrowserStack
-        context.driver = webdriver.Remote(
-            command_executor=f"https://{BROWSERSTACK_USERNAME}:{BROWSERSTACK_ACCESS_KEY}@hub-cloud.browserstack.com/wd/hub",
-            options=options
-        )
+            options.set_capability("browserName", "Chrome")
+            options.set_capability("bstack:options", bstack_options)
+
+            # ---------------- Mobile Emulation ----------------
+            mobile_emulation = {
+                "deviceMetrics": {"width": 803, "height": 844, "pixelRatio": 3.0},
+                "userAgent": (
+                    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/16.0 Mobile/20A534 Safari/604.1"
+                )
+            }
+
+            options.add_experimental_option("mobileEmulation", mobile_emulation)
+
+            context.driver = webdriver.Remote(
+                command_executor=f"https://{BROWSERSTACK_USERNAME}:{BROWSERSTACK_ACCESS_KEY}@hub-cloud.browserstack.com/wd/hub",
+                options=options
+            )
+
+            # Optional: Set window size explicitly
+            context.driver.set_window_size(803, 844)
 
     else:
         # ---------- Local Chrome ----------
         if browser == "chrome":
             options = ChromeOptions()
+
+            # ----------------- Mobile emulation -----------------
+            if mobile:
+                # Instead of named device (can hide UI), use manual iPhone 14 Pro Max size
+                width, height = 803, 900 # iPhone 14 Pro Max
+                # User-Agent for iPhone 14 Pro Max
+                user_agent = (
+                    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
+                    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                    "Version/16.0 Mobile/20A534 Safari/604.1"
+                )
+                mobile_emulation = {
+                    "deviceMetrics": {"width": width, "height": height, "pixelRatio": 3.0},
+                    "userAgent": user_agent
+                }
+                options.add_experimental_option("mobileEmulation", mobile_emulation)
+
+            # ----------------- Disable notifications -----------------
             options.add_experimental_option("prefs", {
                 "profile.default_content_setting_values.notifications": 2
             })
-            if headless == "true":
+
+            if headless:
                 options.add_argument("--headless=new")
                 options.add_argument("--window-size=1920,1080")
                 options.add_argument("--disable-gpu")
                 options.add_argument("--no-sandbox")
 
-
-            driver_path = ChromeDriverManager().install()
-            service = ChromeService(driver_path)
+            service = ChromeService(ChromeDriverManager().install())
             context.driver = webdriver.Chrome(service=service, options=options)
 
         # ---------- Local Firefox ----------
@@ -75,8 +112,11 @@ def browser_init(context):
             raise Exception("Browser not supported!")
 
     # Common settings
+
+    if not mobile:
+        context.driver.maximize_window()
+
     context.driver.implicitly_wait(15)
-    context.driver.maximize_window()
     context.app = Application(context.driver)
 
 
@@ -109,3 +149,38 @@ def after_step(context, step):
 def after_scenario(context, scenario):
     if hasattr(context, "driver"):
         context.driver.quit()
+
+    """
+    if use_browserstack:
+        from selenium.webdriver.chrome.options import Options
+
+        options = Options()
+
+        device = context.config.userdata.get("device", "Samsung Galaxy S23")
+        os_version = context.config.userdata.get("os_version", "13.0")
+
+        bstack_options = {
+            "deviceName": device if mobile else None,
+            "osVersion": os_version,
+            "realMobile": "true" if mobile else None,
+            "os": "OS X" if not mobile else None,
+            "browserVersion": "latest",
+            "buildName": f"Behave Automation Build {datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "sessionName": context.scenario.name if hasattr(context, "scenario") else "Test Session",
+            "debug": "true",
+            "networkLogs": "true",
+            "video": "true"
+
+        }
+
+        # Remove None values
+        bstack_options = {k: v for k, v in bstack_options.items() if v is not None}
+
+        options.set_capability("browserName", "Chrome")
+        options.set_capability("bstack:options", bstack_options)
+
+        context.driver = webdriver.Remote(
+            command_executor=f"https://{BROWSERSTACK_USERNAME}:{BROWSERSTACK_ACCESS_KEY}@hub-cloud.browserstack.com/wd/hub",
+            options=options
+        )
+    """

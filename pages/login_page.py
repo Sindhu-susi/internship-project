@@ -9,7 +9,7 @@ class LoginPage(Page):
    LOGIN_BTN=(By.XPATH,"//a[@class='login-button w-button']")
 
    def login(self, email, password):
-        self.click(*self.SIGN_IN)
+        self.click_js(*self.SIGN_IN)
         self.input_text(self.EMAIL, email)
         self.input_text(self.PASSWORD, password)
-        self.click(*self.LOGIN_BTN)
+        self.click_js(*self.LOGIN_BTN)

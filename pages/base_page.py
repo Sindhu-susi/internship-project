@@ -23,32 +23,34 @@ class Page:
     def find_elements(self,*locator):
         return self.driver.find_elements(*locator)
 
-    @allure.step("Click element: {locator}")
-    def click(self, *locator):
-        wait = WebDriverWait(self.driver, 25)  # longer wait for slow BrowserStack / popups
-
-        # optional: wait for main container first
-        try:
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".dashboard-container")))
-        except:
-            pass
-
-        # wait for element presence
-        element = wait.until(EC.presence_of_element_located(locator))
-
-        # scroll into view
-        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
-
-        try:
-            element.click()
-        except (ElementClickInterceptedException, WebDriverException):
+    @allure.step("JS Click element: {locator}")
+    def click_js(self, *locator, max_scroll_attempts=5, scroll_pause=0.5):
+        """
+        Click an element using JavaScript.
+        - Scrolls element into horizontal center only
+        - Retries scrolling right if element is off-screen
+        """
+        attempt = 0
+        while attempt < max_scroll_attempts:
             try:
+                element = self.find_element(*locator)
+                # Scroll to horizontal center (inline:'center')
+                self.driver.execute_script(
+                    "arguments[0].scrollIntoView({block:'center', inline:'center'});", element
+                )
+                # JS click
                 self.driver.execute_script("arguments[0].click();", element)
-            except Exception as e:
-                import time
-                timestamp = int(time.time())
-                self.driver.save_screenshot(f"screenshot_fail_{timestamp}.png")
-                raise e
+                return  # success
+            except WebDriverException:
+                # Scroll a bit to the right and retry
+                self.driver.execute_script("window.scrollBy(100, 0);")
+                time.sleep(scroll_pause)
+                attempt += 1
+
+        # Screenshot if still failing
+        timestamp = int(time.time())
+        self.driver.save_screenshot(f"screenshot_js_click_fail_{timestamp}.png")
+        raise Exception(f"Unable to click element after {max_scroll_attempts} horizontal scrolls: {locator}")
 
     @allure.step("Input text '{text}' into element: {locator}")
     def input_text(self,  locator,text,):
@@ -85,3 +87,32 @@ class Page:
                 return element.is_displayed()
             except (TimeoutException, NoSuchElementException):
                 return False
+
+    """
+    @allure.step("Click element: {locator}")
+    def click(self, *locator):
+        wait = WebDriverWait(self.driver, 25)  # longer wait for slow BrowserStack / popups
+
+        # optional: wait for main container first
+        try:
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".dashboard-container")))
+        except:
+            pass
+
+        # wait for element presence
+        element = wait.until(EC.presence_of_element_located(locator))
+
+        # scroll into view
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", element)
+
+        try:
+            element.click()
+        except (ElementClickInterceptedException, WebDriverException):
+            try:
+                self.driver.execute_script("arguments[0].click();", element)
+            except Exception as e:
+                import time
+                timestamp = int(time.time())
+                self.driver.save_screenshot(f"screenshot_fail_{timestamp}.png")
+                raise e
+    """
